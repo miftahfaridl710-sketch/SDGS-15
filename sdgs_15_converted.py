@@ -6,7 +6,7 @@
 # ---- cell 1 ----
 
 # Install & Import Library
-!pip install openpyxl
+pip install openpyxl
 
 import pandas as pd
 import numpy as np
