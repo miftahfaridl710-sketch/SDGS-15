@@ -196,10 +196,43 @@ desc3 = ("Jika terdapat data emisi (sheet carbon), plot ini menampilkan total em
          "Jika sheet tidak tersedia, aplikasi menggunakan estimasi berdasarkan stok karbon rata-rata per ha.")
 st.write(desc3)
 
-if "emission_Mg_CO2e" in merged.columns and merged["emission_Mg_CO2e"].notna().any():
-    carbon_trend = merged.groupby("year", as_index=False)["emission_Mg_CO2e"].sum()
+st.write("Kolom yang tersedia:", merged.columns.tolist())
+# PLOT 3: Tren Emisi Karbon akibat Deforestasi
+# -------------------------
+st.markdown("---")
+st.header("Tren Emisi Karbon Akibat Deforestasi")
+desc3 = ("Jika terdapat data emisi (sheet carbon), plot ini menampilkan total emisi per tahun (Mg CO2e). "
+         "Jika sheet tidak tersedia, aplikasi menggunakan estimasi berdasarkan stok karbon rata-rata per ha.")
+st.write(desc3)
+
+# Pilih kolom yang tersedia untuk emisi
+emission_col = None
+for col in ["emission_Mg_CO2e", "emission_estimated_CO2e"]:
+    if col in merged.columns:
+        emission_col = col
+        break
+
+if emission_col is None or merged[emission_col].isna().all():
+    st.error("❌ Tidak ditemukan kolom emisi (`emission_Mg_CO2e` atau `emission_estimated_CO2e`). "
+             "Pastikan sheet carbon tersedia atau kolom stok karbon per ha ada di dataset.")
+    st.stop()
 else:
-    carbon_trend = merged.groupby("year", as_index=False)["emission_estimated_CO2e"].sum().rename(columns={"emission_estimated_CO2e":"emission_Mg_CO2e"})
+    carbon_trend = merged.groupby("year", as_index=False)[emission_col].sum()
+    carbon_trend = carbon_trend.rename(columns={emission_col: "emission_Mg_CO2e"})
+
+    fig_emis = px.line(
+        carbon_trend, x="year", y="emission_Mg_CO2e",
+        title="Tren Emisi Karbon akibat Deforestasi (2001–2024)",
+        labels={"emission_Mg_CO2e": "Emisi (Mg CO2e)", "year": "Tahun"},
+        markers=True
+    )
+    st.plotly_chart(fig_emis, use_container_width=True)
+    st.download_button(
+        "Unduh data emisi (CSV)",
+        data=carbon_trend.to_csv(index=False).encode(),
+        file_name="carbon_trend.csv",
+        mime="text/csv"
+    )
 
 fig_emis = px.line(carbon_trend, x="year", y="emission_Mg_CO2e", title="Tren Emisi Karbon akibat Deforestasi (2001–2024)",
                    labels={"emission_Mg_CO2e":"Emisi (Mg CO2e)", "year":"Tahun"}, markers=True)
