@@ -3,10 +3,7 @@ pandas
 numpy
 plotly
 geopandas
+matplotlib
 xgboost
 scikit-learn
 openpyxl
-matplotlib
-seaborn
-urllib3
-kaleido
