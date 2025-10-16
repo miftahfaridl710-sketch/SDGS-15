@@ -116,7 +116,7 @@ plt.show()
 
 # ---- cell 8 ----
 
-output_path = "/content/deforestation_ready.csv"
+df.to_csv("deforestation.csv", index=False)
 df_long.to_csv(output_path, index=False)
 print("File siap modelling disimpan di:", output_path)
 
