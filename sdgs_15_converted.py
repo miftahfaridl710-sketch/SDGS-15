@@ -34,9 +34,10 @@ SHAPE_DIR.mkdir(parents=True, exist_ok=True)
 # URL dataset (raw GitHub) — pastikan file IDN.xlsx ada di branch main
 EXCEL_RAW_URL = "https://raw.githubusercontent.com/miftahfaridl710-sketch/SDGS-15/main/IDN.xlsx"
 
-# Shapefile URL (GADM v4.1)
-GADM_ZIP_URL = "https://geodata.ucdavis.edu/gadm/gadm4.1/shp/gadm41_IDN_shp.zip"
-GADM_ZIP_LOCAL = SHAPE_DIR / "gadm41_IDN_shp.zip"
+# langsung baca shapefile dari root repo
+import geopandas as gpd
+shp_path = "gadm41_IDN_1.shp"
+gdf = gpd.read_file(shp_path)
 
 # -------------------------
 # HELPERS
