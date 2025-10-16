@@ -33,7 +33,7 @@ pd.set_option('display.float_format', lambda x: f'{x:,.2f}')
 # ---- cell 3 ----
 
 # Load Dataset dari Google Drive / Colab Files
-file_path = "/content/IDN.xlsx"
+url = "https://raw.githubusercontent.com/miftahfaridl710-sketch/SDGS-15/main/IDN.xlsx"
 
 # Baca sheet Subnational 1 tree cover loss
 df = pd.read_excel(file_path, sheet_name="Subnational 1 tree cover loss")
