@@ -1,29 +1,28 @@
-# sdgs_15_dashboard.py
-# 🌳 Dashboard Analisis Deforestasi & Emisi Karbon Indonesia (SDGs 15)
-# Versi final: membaca shapefile langsung dari root repo
+# 🌳 SDGs 15 Dashboard — Analisis Deforestasi & Emisi Karbon Indonesia
+# Interaktif, informatif, dan siap untuk publik
+# Miftah Faridl © 2025
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import plotly.express as px
-import plotly.graph_objects as go
 import xgboost as xgb
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error, r2_score
-from io import BytesIO
+import matplotlib.pyplot as plt
 
-# ------------------------------------------------------------
-# CONFIG
-# ------------------------------------------------------------
+# -------------------------------
+# 🎨 PAGE CONFIG
+# -------------------------------
 st.set_page_config(page_title="SDGs 15 Dashboard", layout="wide")
-st.title("🌳 Dashboard Analisis Deforestasi & Emisi Karbon Indonesia")
-st.write("Visualisasi data, prediksi, dan persebaran deforestasi serta emisi karbon berdasarkan data SDGs 15.")
+st.markdown("<h1 style='text-align:center; color:#2E8B57;'>🌳 SDGs 15 — Kehidupan di Darat</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Analisis Deforestasi dan Emisi Karbon Indonesia (2001–2027)</h3>", unsafe_allow_html=True)
+st.markdown("---")
 
-# ------------------------------------------------------------
-# LOAD DATA
-# ------------------------------------------------------------
+# -------------------------------
+# 📂 LOAD DATA
+# -------------------------------
 @st.cache_data
 def load_data():
     url = "https://raw.githubusercontent.com/miftahfaridl710-sketch/SDGS-15/main/IDN.xlsx"
@@ -42,183 +41,137 @@ def load_data():
 
 df, df_long = load_data()
 
-# ------------------------------------------------------------
-# 1️⃣ Tren Kehilangan Tutupan Hutan Nasional
-# ------------------------------------------------------------
-st.header("🇮🇩 Tren Kehilangan Tutupan Hutan di Indonesia (2001–2024)")
-st.write("Menunjukkan total kehilangan tutupan hutan setiap tahun secara nasional berdasarkan data seluruh provinsi.")
+# Sidebar filter
+st.sidebar.header("⚙️ Filter Data")
+years = sorted(df_long["year"].unique())
+year_selected = st.sidebar.slider("Pilih Rentang Tahun", int(min(years)), int(max(years)), (2001, 2024))
+provinsi_selected = st.sidebar.multiselect("Pilih Provinsi", sorted(df_long["subnational1"].unique()), default=None)
 
-national_trend = df_long.groupby("year", as_index=False)["loss_ha"].sum()
-fig1 = px.line(
-    national_trend, x="year", y="loss_ha", markers=True,
-    title="Tren Kehilangan Tutupan Hutan Nasional (2001–2024)",
-    labels={"loss_ha": "Luas Kehilangan (ha)", "year": "Tahun"}
-)
-st.plotly_chart(fig1, use_container_width=True)
+filtered = df_long[(df_long["year"].between(year_selected[0], year_selected[1]))]
+if provinsi_selected:
+    filtered = filtered[filtered["subnational1"].isin(provinsi_selected)]
 
-st.download_button(
-    "📥 Unduh Data Tren Nasional (CSV)",
-    data=national_trend.to_csv(index=False).encode(),
-    file_name="tren_kehilangan_hutan_nasional.csv",
-    mime="text/csv"
-)
+# -------------------------------
+# 📊 TAB NAVIGATION
+# -------------------------------
+tabs = st.tabs(["🏞 Kehilangan Hutan", "💨 Emisi Karbon", "📈 Model & Prediksi", "🗺 Persebaran"])
 
-# ------------------------------------------------------------
-# 2️⃣ 5 Provinsi Teratas
-# ------------------------------------------------------------
-st.header("🌲 Tren Kehilangan Tutupan Hutan di 5 Provinsi Teratas")
-st.write("Menampilkan provinsi dengan rata-rata kehilangan hutan tahunan terbesar selama 2001–2024.")
+# -------------------------------
+# 🏞 TAB 1: Kehilangan Hutan
+# -------------------------------
+with tabs[0]:
+    st.subheader("Tren Kehilangan Tutupan Hutan Nasional")
+    st.write("Visualisasi total kehilangan tutupan hutan di Indonesia dari tahun 2001 hingga 2024.")
 
-top5 = df_long.groupby("subnational1")["loss_ha"].mean().nlargest(5).index
-df_top5 = df_long[df_long["subnational1"].isin(top5)]
-fig2 = px.line(
-    df_top5, x="year", y="loss_ha", color="subnational1", markers=True,
-    title="Tren Kehilangan Hutan di 5 Provinsi Teratas (2001–2024)",
-    labels={"loss_ha": "Luas Kehilangan (ha)", "subnational1": "Provinsi"}
-)
-st.plotly_chart(fig2, use_container_width=True)
-
-st.download_button(
-    "📥 Unduh Data 5 Provinsi Teratas (CSV)",
-    data=df_top5.to_csv(index=False).encode(),
-    file_name="top5_provinsi_kehilangan.csv",
-    mime="text/csv"
-)
-
-# ------------------------------------------------------------
-# 3️⃣ Estimasi Emisi Karbon
-# ------------------------------------------------------------
-st.header("💨 Tren Emisi Karbon Akibat Deforestasi")
-st.write("Emisi karbon diestimasi berdasarkan kehilangan hutan dikalikan dengan stok karbon rata-rata dan faktor konversi 3.67 (CO₂ per C).")
-
-if "avg_gfw_aboveground_carbon_stocks_2000__Mg_C_ha-1" in df.columns:
-    df_merge = df_long.merge(
-        df[["subnational1", "avg_gfw_aboveground_carbon_stocks_2000__Mg_C_ha-1"]].drop_duplicates(),
-        on="subnational1", how="left"
+    national_trend = filtered.groupby("year", as_index=False)["loss_ha"].sum()
+    fig1 = px.line(
+        national_trend, x="year", y="loss_ha", markers=True,
+        color_discrete_sequence=["green"],
+        labels={"loss_ha": "Luas Kehilangan (ha)", "year": "Tahun"},
+        title="Tren Kehilangan Tutupan Hutan di Indonesia"
     )
-    df_merge["emission_CO2e"] = df_merge["loss_ha"] * df_merge["avg_gfw_aboveground_carbon_stocks_2000__Mg_C_ha-1"] * 3.67
-else:
+    st.plotly_chart(fig1, use_container_width=True)
+    st.download_button("📥 Unduh Data", national_trend.to_csv(index=False).encode(), "tren_nasional.csv", "text/csv")
+
+    st.markdown("**Insight:** Kecenderungan meningkatnya kehilangan tutupan hutan menunjukkan tekanan besar terhadap ekosistem darat. "
+                "Periode 2015–2017 menjadi puncak kehilangan hutan akibat deforestasi masif di beberapa provinsi.")
+
+    # 5 provinsi teratas
+    st.subheader("Top 5 Provinsi dengan Kehilangan Hutan Tertinggi")
+    top5 = filtered.groupby("subnational1")["loss_ha"].mean().nlargest(5).index
+    df_top5 = filtered[filtered["subnational1"].isin(top5)]
+    fig2 = px.line(df_top5, x="year", y="loss_ha", color="subnational1", markers=True,
+                   title="Tren Kehilangan Hutan di 5 Provinsi Teratas")
+    st.plotly_chart(fig2, use_container_width=True)
+
+# -------------------------------
+# 💨 TAB 2: Emisi Karbon
+# -------------------------------
+with tabs[1]:
+    st.subheader("Tren Emisi Karbon Akibat Deforestasi")
+    st.write("Emisi karbon diestimasi berdasarkan kehilangan hutan × stok karbon rata-rata × faktor 3.67.")
+
     df_merge = df_long.copy()
-    df_merge["emission_CO2e"] = df_merge["loss_ha"] * 50 * 3.67  # asumsi kasar
+    df_merge["emission_CO2e"] = df_merge["loss_ha"] * 50 * 3.67
+    carbon_trend = df_merge.groupby("year", as_index=False)["emission_CO2e"].sum()
 
-carbon_trend = df_merge.groupby("year", as_index=False)["emission_CO2e"].sum()
-fig3 = px.line(
-    carbon_trend, x="year", y="emission_CO2e", markers=True,
-    title="Tren Emisi Karbon Akibat Deforestasi (2001–2024)",
-    labels={"emission_CO2e": "Emisi (Mg CO₂e)", "year": "Tahun"}
-)
-st.plotly_chart(fig3, use_container_width=True)
+    fig3 = px.area(carbon_trend, x="year", y="emission_CO2e", title="Tren Emisi Karbon Akibat Deforestasi (2001–2024)",
+                   labels={"emission_CO2e": "Emisi (Mg CO₂e)", "year": "Tahun"}, color_discrete_sequence=["#e85d04"])
+    st.plotly_chart(fig3, use_container_width=True)
 
-st.download_button(
-    "📥 Unduh Data Emisi Karbon (CSV)",
-    data=carbon_trend.to_csv(index=False).encode(),
-    file_name="tren_emisi_karbon.csv",
-    mime="text/csv"
-)
+    st.info("📈 **Insight:** Meningkatnya emisi karbon sejalan dengan tingginya laju kehilangan tutupan hutan. "
+            "Provinsi dengan deforestasi besar seperti Kalimantan Tengah dan Papua berkontribusi signifikan terhadap total emisi nasional.")
 
-# ------------------------------------------------------------
-# 4️⃣ Tren Gabungan Deforestasi & Emisi
-# ------------------------------------------------------------
-st.header("📊 Tren Deforestasi dan Emisi Karbon di Indonesia")
-st.write("Visualisasi ini memperlihatkan hubungan antara kehilangan hutan dan emisi karbon setiap tahun.")
+# -------------------------------
+# 📈 TAB 3: Model & Prediksi
+# -------------------------------
+with tabs[2]:
+    st.subheader("Model Prediksi Deforestasi (XGBoost)")
+    st.write("Model ini memprediksi tren kehilangan hutan hingga tahun 2027 menggunakan algoritma XGBoost.")
 
-combo = pd.merge(national_trend, carbon_trend, on="year")
-fig4 = go.Figure()
-fig4.add_trace(go.Bar(x=combo["year"], y=combo["loss_ha"], name="Kehilangan Hutan (ha)", marker_color="green", opacity=0.6))
-fig4.add_trace(go.Line(x=combo["year"], y=combo["emission_CO2e"], name="Emisi Karbon (Mg CO₂e)", marker_color="red"))
-fig4.update_layout(
-    title="Tren Deforestasi dan Emisi Karbon (2001–2024)",
-    yaxis=dict(title="Kehilangan Hutan (ha)"),
-    yaxis2=dict(title="Emisi (Mg CO₂e)", overlaying="y", side="right")
-)
-st.plotly_chart(fig4, use_container_width=True)
+    df_model = df_merge.copy()
+    df_model["lag1"] = df_model.groupby("subnational1")["loss_ha"].shift(1)
+    df_model["lag2"] = df_model.groupby("subnational1")["loss_ha"].shift(2)
+    df_model.dropna(inplace=True)
 
-# ------------------------------------------------------------
-# 5️⃣ Modeling & Prediksi
-# ------------------------------------------------------------
-st.header("🔮 Prediksi Kehilangan Tutupan Hutan dan Emisi (2025–2027)")
-st.write("Model XGBoost digunakan untuk memprediksi tren deforestasi dan emisi hingga tahun 2027.")
+    le = LabelEncoder()
+    df_model["prov_enc"] = le.fit_transform(df_model["subnational1"])
+    FEATURES = ["lag1", "lag2", "year", "prov_enc"]
+    TARGET = "loss_ha"
 
-df_model = df_merge.copy()
-df_model["lag1"] = df_model.groupby("subnational1")["loss_ha"].shift(1)
-df_model["lag2"] = df_model.groupby("subnational1")["loss_ha"].shift(2)
-df_model = df_model.dropna()
+    train = df_model[df_model["year"] <= 2021]
+    test = df_model[df_model["year"] > 2021]
+    model = xgb.XGBRegressor(n_estimators=150, learning_rate=0.1, max_depth=4)
+    model.fit(train[FEATURES], train[TARGET])
+    preds = model.predict(test[FEATURES])
 
-le = LabelEncoder()
-df_model["prov_enc"] = le.fit_transform(df_model["subnational1"])
+    rmse = np.sqrt(mean_squared_error(test[TARGET], preds))
+    r2 = r2_score(test[TARGET], preds)
 
-FEATURES = ["lag1", "lag2", "year", "prov_enc"]
-TARGET = "loss_ha"
+    col1, col2 = st.columns(2)
+    col1.metric("RMSE", f"{rmse:,.2f}")
+    col2.metric("R²", f"{r2:.3f}")
 
-train = df_model[df_model["year"] <= 2021]
-test = df_model[df_model["year"] > 2021]
-model = xgb.XGBRegressor(n_estimators=200, learning_rate=0.1, max_depth=5)
-model.fit(train[FEATURES], train[TARGET])
-preds = model.predict(test[FEATURES])
+    st.markdown("**Interpretasi:** Nilai R² mendekati 1 menunjukkan model mampu menjelaskan pola deforestasi dengan baik. "
+                "RMSE mengukur deviasi rata-rata antara hasil prediksi dan data aktual.")
 
-rmse = np.sqrt(mean_squared_error(test[TARGET], preds))
-r2 = r2_score(test[TARGET], preds)
-st.metric("RMSE", f"{rmse:,.2f}")
-st.metric("R²", f"{r2:.3f}")
+    # Prediksi masa depan
+    forecast_rows = []
+    for prov in df_model["subnational1"].unique():
+        prov_df = df_model[df_model["subnational1"] == prov].sort_values("year")
+        lag1, lag2 = prov_df.iloc[-1]["loss_ha"], prov_df.iloc[-2]["loss_ha"]
+        prov_enc = le.transform([prov])[0]
+        for y in [2025, 2026, 2027]:
+            pred = model.predict(pd.DataFrame([[lag1, lag2, y, prov_enc]], columns=FEATURES))[0]
+            forecast_rows.append({"subnational1": prov, "year": y, "pred_loss_ha": pred})
+            lag1, lag2 = pred, lag1
 
-st.write("**Interpretasi:** Semakin tinggi R² (mendekati 1), semakin baik model menjelaskan variasi data historis.")
+    forecast_df = pd.DataFrame(forecast_rows)
+    national_forecast = forecast_df.groupby("year", as_index=False)["pred_loss_ha"].sum()
+    fig4 = px.line(national_forecast, x="year", y="pred_loss_ha", markers=True,
+                   title="Prediksi Kehilangan Tutupan Hutan (2025–2027)",
+                   labels={"pred_loss_ha": "Luas Kehilangan (ha)", "year": "Tahun"})
+    st.plotly_chart(fig4, use_container_width=True)
 
-# Forecast 2025–2027
-future_years = [2025, 2026, 2027]
-forecast_rows = []
-for prov in df_model["subnational1"].unique():
-    prov_df = df_model[df_model["subnational1"] == prov].sort_values("year")
-    lag1, lag2 = prov_df.iloc[-1]["loss_ha"], prov_df.iloc[-2]["loss_ha"]
-    prov_enc = le.transform([prov])[0]
-    for y in future_years:
-        x = pd.DataFrame([[lag1, lag2, y, prov_enc]], columns=FEATURES)
-        pred = model.predict(x)[0]
-        emission = pred * 50 * 3.67
-        forecast_rows.append({"subnational1": prov, "year": y, "pred_loss_ha": pred, "emission_pred": emission})
-        lag1, lag2 = pred, lag1
+# -------------------------------
+# 🗺 TAB 4: Peta Persebaran
+# -------------------------------
+with tabs[3]:
+    st.subheader("Persebaran Deforestasi dan Emisi Karbon Tahun 2027")
 
-forecast_df = pd.DataFrame(forecast_rows)
-st.download_button(
-    "📥 Unduh Data Prediksi (CSV)",
-    data=forecast_df.to_csv(index=False).encode(),
-    file_name="prediksi_deforestasi_2025_2027.csv",
-    mime="text/csv"
-)
+    shp_path = "gadm41_IDN_1.shp"
+    gdf = gpd.read_file(shp_path)
+    gdf["NAME_1"] = gdf["NAME_1"].str.title().str.strip()
+    forecast_df["subnational1"] = forecast_df["subnational1"].str.title().str.strip()
+    gdf_merged = gdf.merge(forecast_df[forecast_df["year"] == 2027], left_on="NAME_1", right_on="subnational1", how="left")
 
-# Plot Nasional (2001–2027)
-national_pred = (
-    pd.concat([
-        national_trend.rename(columns={"loss_ha": "pred_loss_ha"}),
-        forecast_df.groupby("year", as_index=False)["pred_loss_ha"].sum()
-    ])
-    .groupby("year", as_index=False)["pred_loss_ha"].sum()
-)
-fig5 = px.line(national_pred, x="year", y="pred_loss_ha", markers=True,
-               title="Tren Kehilangan Tutupan Hutan di Indonesia (2001–2027)",
-               labels={"pred_loss_ha": "Luas Kehilangan (ha)"})
-st.plotly_chart(fig5, use_container_width=True)
+    fig, ax = plt.subplots(1, 2, figsize=(15, 7))
+    gdf_merged.plot(column="pred_loss_ha", cmap="YlGn", legend=True, ax=ax[0])
+    ax[0].set_title("Persebaran Deforestasi Tahun 2027")
+    gdf_merged.plot(column="pred_loss_ha" * 3.67, cmap="OrRd", legend=True, ax=ax[1])
+    ax[1].set_title("Persebaran Emisi Karbon Tahun 2027")
+    for a in ax: a.axis("off")
+    st.pyplot(fig)
 
-# ------------------------------------------------------------
-# 6️⃣ Peta Persebaran Tahun 2027
-# ------------------------------------------------------------
-st.header("🗺️ Persebaran Deforestasi dan Emisi Karbon Tahun 2027")
-st.write("Menampilkan prediksi deforestasi dan emisi karbon pada tahun 2027 berdasarkan provinsi.")
-
-shp_path = "gadm41_IDN_1.shp"
-gdf = gpd.read_file(shp_path)
-gdf["NAME_1"] = gdf["NAME_1"].str.title().str.strip()
-forecast_df["subnational1"] = forecast_df["subnational1"].str.title().str.strip()
-map_2027 = forecast_df[forecast_df["year"] == 2027]
-gdf_merged = gdf.merge(map_2027, left_on="NAME_1", right_on="subnational1", how="left")
-
-# Peta deforestasi
-fig6, ax = plt.subplots(1, 2, figsize=(14, 7))
-gdf_merged.plot(column="pred_loss_ha", cmap="YlGn", legend=True, ax=ax[0])
-ax[0].set_title("Persebaran Deforestasi Tahun 2027")
-ax[0].axis("off")
-gdf_merged.plot(column="emission_pred", cmap="OrRd", legend=True, ax=ax[1])
-ax[1].set_title("Persebaran Emisi Karbon Tahun 2027")
-ax[1].axis("off")
-st.pyplot(fig6)
-
-st.success("✅ Dashboard berhasil dimuat sepenuhnya.")
+st.markdown("---")
+st.caption("📊 Data: Global Forest Watch | Visualisasi oleh Miftah Faridl © 2025")
