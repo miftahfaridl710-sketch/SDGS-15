@@ -22,6 +22,7 @@ import seaborn as sns
 from sklearn.metrics import r2_score
 
 
+
 # ---- cell 2 ----
 
 # Tampilan dataframe yang lebih rapi
@@ -596,8 +597,14 @@ forecast_2027 = forecast[forecast["year"] == 2027].copy()
 
 # ---- cell 43 ----
 
-!wget -q https://geodata.ucdavis.edu/gadm/gadm4.1/shp/gadm41_IDN_shp.zip -O /content/idn_shapefile.zip
-!unzip -q /content/idn_shapefile.zip -d /content/idn_shapefile
+import os
+import urllib.request
+
+url = "https://geodata.ucdavis.edu/gadm/gadm4.1/shp/gadm41_IDN_shp.zip"
+output_path = "idn_shapefile.zip"
+
+if not os.path.exists(output_path):
+    urllib.request.urlretrieve(url, output_path)
 
 # Baca shapefile
 gdf = gpd.read_file("/content/idn_shapefile/gadm41_IDN_1.shp")
